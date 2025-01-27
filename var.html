@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Var</title>
+
+    <style>
+        .all {
+            margin-right: 10px;
+        }
+        .situation_choose, .match{
+            display: inline-block;
+            vertical-align: middle;
+            margin-right: 10px;
+        }
+        .vote{
+            font-size: 20px;
+            display: inline-block;
+            vertical-align: middle;
+            margin-right: 10px;
+        }
+        canvas {
+            background-color: green;
+        }
+        table {
+            border-collapse: collapse;
+        }
+        table th, table td {
+            width: 25px;
+            height: 25px;
+            border: 1px solid black;
+            text-align: center;
+            vertical-align: middle;
+        }
+    </style>
+
+
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.js"></script>
+</head>
+<body>
+
+
+    <div class = all>
+        <button class = 'situation_choose' id = "prev_page">Prethodna situacija</button>
+        <div class = 'situation_choose' id = "situation_nr"></div>
+        <button class = 'situation_choose' id = "next_page">Iduća situacija</button>
+        <br>
+        <br>
+        <div class = 'description' id = "situation_description"></div>
+        <div class = 'vote' id = "situation_vote"></div>
+        <button class = 'vote_b' id = "send_decision">Glasaj!</button>
+        <br>
+        <br>
+        <canvas width = "550" height = "375" id = "cnv"></canvas>
+    </div>
+
+    <script>
+        let try_sit = 1;
+        let current_situation = 1;
+        let decision = 'NE';
+        let rect_players_in_match = [];
+        let ball_center = [];
+        let situation;
+        let s;
+        let p;
+
+        $(document).ready(function() {
+            catchSituation(current_situation);
+            
+            $('#prev_page').on('click', previousPage);
+            $('#next_page').on('click', nextPage);
+
+            $('#cnv').click(cnvClick);
+
+            $('#send_decision').on('click', function() {
+                updateDesc(current_situation, decision);
+            });
+        
+        });
+
+        function catchSituation(N){
+            $.ajax({
+                url: '...',
+                data:{situacija: N}, 
+                method: 'GET',
+                dataType: 'json',
+                success: saveSituation
+
+            });
+        }
+
+        function updateDesc(N, dec){
+            $.ajax({
+                url: '...',
+                data:{situacija: N,
+                    glas: dec }, 
+                method: 'GET',
+                dataType: 'json',
+                success: saveSituation
+            });
+        }
+
+        function saveSituation(data){
+
+            s = JSON.stringify(data);
+            console.log("data:  " + s);
+            p = JSON.parse(s);
+
+            drawSituation(p);
+        }
+
+        function drawSituation(p){
+
+            if (!(p.hasOwnProperty('error'))) {
+                current_situation = try_sit;
+                
+                drawEmptyField();
+
+                situation = p.tip_situacije;
+                situationDescription(p);
+                
+                rect_players_in_match = [];
+                drawPlayers(p.tim1, 1);
+                drawPlayers(p.tim2, 2);
+                drawBall(p);
+            } 
+        }
+
+        function drawEmptyField(){
+            let cnv = $('#cnv').get(0);
+            let ctx = cnv.getContext('2d');
+
+            ctx.clearRect(0, 0, cnv.width, cnv.height);
+
+            ctx.strokeStyle = 'white'; 
+            
+            //rub terena
+            ctx.beginPath();
+            ctx.moveTo(25,375);
+            ctx.lineTo(25,25);
+            ctx.lineTo(525,25);
+            ctx.lineTo(525,375);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.rect(225, 25, 100, 40);
+            ctx.rect(175, 25, 200, 125);
+            ctx.moveTo(223,152);
+            ctx.arc(275, 98, 75, 3*Math.PI/4, Math.PI/4, true );
+            ctx.stroke();
+
+            //gol
+            ctx.strokeStyle = 'black'; 
+            ctx.lineWidth = 5;
+            ctx.beginPath();
+            ctx.moveTo(235,25);
+            ctx.lineTo(315,25);
+            ctx.stroke();
+                
+        }
+
+        function drawPlayers(tim, t){
+            let cnv = $('#cnv').get(0);
+            let ctx = cnv.getContext('2d');
+
+            ctx.beginPath();
+            ctx.fillStyle = tim.boja;
+            tim.igraci.forEach(element => {
+                ctx.fillRect(Number(element.x)+25-8, Number(element.y)+25-8, 16, 16);
+                let player = [t, Number(element.x)+25-8, Number(element.y)+25-8];
+                rect_players_in_match.push(player);
+            });
+            ctx.stroke();
+        }
+
+        function drawBall(p){
+            let cnv = $('#cnv').get(0);
+            let ctx = cnv.getContext('2d');
+
+            ball_rect = [];
+
+            ctx.beginPath();
+            
+            if(p.tip_situacije === "offside"){
+                ctx.arc(Number(p.lopta[0].x)+25, Number(p.lopta[0].y)+25, 7, 0, 2 * Math.PI);
+                ctx.fillStyle = 'white';
+                ctx.fill();
+            } else {
+                ctx.arc((Number(p.lopta[1].x)+25), (Number(p.lopta[1].y)+25), 7, 0, 2 * Math.PI);
+                ctx.fillStyle = 'white';
+                ctx.fill();
+                ball_center = [(Number(p.lopta[1].x)+25), (Number(p.lopta[1].y)+25)];
+            }
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(Number(p.lopta[0].x)+25, Number(p.lopta[0].y)+25);
+            ctx.lineTo(Number(p.lopta[1].x)+25, Number(p.lopta[1].y)+25);
+            ctx.stroke();
+
+        }
+
+        function situationDescription(p){
+            $('#situation_nr').html('<strong>Situacija broj: ' + current_situation + '</strong>');
+
+            let div = $('#situation_description');
+            div.empty();
+            $('#situation_vote').empty();
+
+            let $u = $('<h3>Utakmica: </h3>').addClass('match');
+
+
+            let $table1 = $('<table></table>').addClass('match');
+            let $tr1 = $('<tr></tr>');
+            let $td1 = $('<td></td>').css('background-color', p.tim1.boja);
+            $tr1.append($td1);
+            $table1.append($tr1);
+
+            let $table2 = $('<table></table>').addClass('match');
+            let $tr2 = $('<tr></tr>');
+            let $td2 = $('<td></td>').css('background-color', p.tim2.boja);;
+            $tr2.append($td2);
+            $table2.append($tr2);
+
+            let $vs = $('<h3>' + p.tim1.ime + ' - ' + p.tim2.ime + '</h3>').addClass('match');
+
+            div.append($u)
+                .append($table1)
+                .append($vs)
+                .append($table2)
+                .append('<br>');
+
+            if(p.tip_situacije === "offside"){
+                div.append('<strong>Provjera je li ' + p.tim1.ime + ' napravila offside.</strong>');
+                $('#situation_vote').html('Glasajte je li offside! Vaša odluka je: ' + decision);
+            } else {
+                div.append('<strong>Provjera je li ' + p.tim1.ime + ' dala gol.</strong>');
+                $('#situation_vote').html('Glasajte je li gol! Vaša odluka je: ' + decision);
+            }
+
+            div.append('<br>').append('<br>')
+                .append('Do sada: ' + p.broj_glasova[0] + ' gledatelja kaže DA, ' + p.broj_glasova[1] + ' gledatelja kaže NE.')
+                .append('<br>').append('<br>');
+            
+        }
+
+        function previousPage(){
+            try_sit = current_situation - 1;
+            catchSituation(try_sit);
+        }
+
+        function nextPage(){
+            try_sit = current_situation + 1;
+            catchSituation(try_sit);
+        }
+
+        function cnvClick(event){
+           
+            drawSituation(p);
+
+            let cnv = $('#cnv').get(0);
+            let ctx = cnv.getContext('2d');
+            const rect = cnv.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+
+            let rect_click = false;
+            let rect_i;
+            if(situation === "offside"){
+                for (let i = 0; i < rect_players_in_match.length; i++){
+                    let rectX = rect_players_in_match[i][1];
+                    let rectY = rect_players_in_match[i][2];
+
+                    if (x > rectX && x < rectX + 16 && y > rectY && y < rectY + 16) {
+                        rect_click = true;
+                        rect_i = i;
+                    }
+                }
+                
+                if(rect_click) {
+                    ctx.strokeStyle = 'white';
+                    ctx.lineWidth = 1;
+                    ctx.setLineDash([3, 3]);
+                    ctx.beginPath();
+                    ctx.moveTo(0, (rect_players_in_match[rect_i][2])+8);
+                    ctx.lineTo(550, (rect_players_in_match[rect_i][2])+8);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+
+                    if(rect_players_in_match[rect_i][0] === 1){
+                        decision = "NE";
+                        updateDecision();
+                    } else {
+                        decision = "DA";
+                        updateDecision();
+                    }
+                } else {
+                    decision = "NE";
+                    drawSituation(p);
+                }
+            } else { //gol
+                if(Math.sqrt((x - ball_center[0]) ** 2 + (y - ball_center[1]) ** 2) <= 7) {
+                    ctx.strokeStyle = 'white';
+                    ctx.lineWidth = 1;
+                    ctx.setLineDash([3, 3]);
+                    ctx.strokeRect((ball_center[0]-9), (ball_center[1]-9), 18, 18); 
+                    ctx.setLineDash([]);
+
+                    decision = "DA";
+                    updateDecision();
+
+                } else {
+                    decision = "NE";
+                    drawSituation(p);
+                }
+            }
+        }
+
+        function updateDecision(){
+            if(situation === "offside"){
+                $('#situation_vote').html('Glasajte je li offside! Vaša odluka je: ' + decision);
+            } else {
+                $('#situation_vote').html('Glasajte je li gol! Vaša odluka je: ' + decision);
+            }
+        }
+
+    </script>
+    
+</body>
+</html>
